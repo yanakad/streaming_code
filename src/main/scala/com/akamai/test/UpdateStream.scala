@@ -8,9 +8,11 @@ import org.yaml.snakeyaml.Yaml
 import org.joda.time.{DateTime, Period}
 
 import java.io._
+import java.net.InetAddress;
 
 
-case class State(val count:Integer,val date:DateTime)
+
+case class State(val count:Integer,val date:DateTime,val ip:String)
 
 
 object UpdateStreamTest{
@@ -39,20 +41,23 @@ object UpdateStreamTest{
     
     val updateFunc = (values: Seq[Int], state: Option[State]) => {
       val currentCount = values.foldLeft(0)(_ + _)
-
-      val previousState = state.getOrElse(State(0,DateTime.now)).asInstanceOf[State]
+      println(s"Testing println")
+      val host = InetAddress.getLocalHost().getHostName()
+      
+      val previousState = state.getOrElse(State(0,DateTime.now,host)).asInstanceOf[State]
       val expiry_minutes = 10 //if state is not updated for 10 min throw it away
       val threshold = new DateTime().minusMinutes(expiry_minutes)
-      val result = 
+     val result = 
       if (currentCount == 0  && previousState.date.isBefore(threshold)){
-        println(s"Have not seen key for $expiry_minutes minites...dropping")
+        println(s"******************************Have not seen key for $expiry_minutes minites...dropping")
         None
       } else {
         if (currentCount == 0 ) {
            Some(previousState) //no change to state but keep around
         }
         else
-          Some(State(currentCount + previousState.count,new DateTime()))
+          Some(State(currentCount + previousState.count,new DateTime(),host)
+          )
       }
       result
     }
@@ -85,6 +90,8 @@ object UpdateStreamTest{
         if (dups){
           val dups = keys.groupBy(l => l).map(t => (t._1, t._2.length)).filter(_._2>1)
           println(" DUPS"+dups.mkString(" "))
+          val dups1 = rdd.filter(_._1 == dups.keys.head)
+          println(" DUPS w/ IP"+dups1.collect().mkString(" "))
         }
     })
   
